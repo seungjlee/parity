@@ -102,7 +102,7 @@ impl<'a> HeaderView<'a> {
 	pub fn decode_seal(&self) -> Result<Vec<Bytes>, rlp::DecoderError> {
 		let seal = self.seal();
 		seal.into_iter()
-			.map(|s| rlp::UntrustedRlp::new(&s).data().map(|x| x.to_vec()))
+			.map(|s| rlp::Rlp::new(&s).data().map(|x| x.to_vec()))
 			.collect()
 	}
 }

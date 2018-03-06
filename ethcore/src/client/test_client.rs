@@ -801,7 +801,7 @@ impl BlockChainClient for TestBlockChainClient {
 
 	fn queue_transactions(&self, transactions: Vec<Bytes>, _peer_id: usize) {
 		// import right here
-		let txs = transactions.into_iter().filter_map(|bytes| UntrustedRlp::new(&bytes).as_val().ok()).collect();
+		let txs = transactions.into_iter().filter_map(|bytes| Rlp::new(&bytes).as_val().ok()).collect();
 		self.miner.import_external_transactions(self, txs);
 	}
 

@@ -47,7 +47,7 @@ impl ArchiveDB {
 	/// Create a new instance from a key-value db.
 	pub fn new(backing: Arc<KeyValueDB>, col: Option<u32>) -> ArchiveDB {
 		let latest_era = backing.get(col, &LATEST_ERA_KEY).expect("Low-level database error.")
-			.map(|val| decode::<u64>(&val));
+			.map(|val| decode::<u64>(&val).expect("rlp read from db; qed"));
 		ArchiveDB {
 			overlay: MemoryDB::new(),
 			backing: backing,

@@ -98,15 +98,15 @@ impl PayloadInfo {
 /// Should be used in places where, error handling is required,
 /// eg. on input
 #[derive(Debug)]
-pub struct UntrustedRlp<'a> {
+pub struct Rlp<'a> {
 	bytes: &'a [u8],
 	offset_cache: Cell<OffsetCache>,
 	count_cache: Cell<Option<usize>>,
 }
 
-impl<'a> Clone for UntrustedRlp<'a> {
-	fn clone(&self) -> UntrustedRlp<'a> {
-		UntrustedRlp {
+impl<'a> Clone for Rlp<'a> {
+	fn clone(&self) -> Rlp<'a> {
+		Rlp {
 			bytes: self.bytes,
 			offset_cache: self.offset_cache.clone(),
 			count_cache: self.count_cache.clone(),
@@ -114,7 +114,7 @@ impl<'a> Clone for UntrustedRlp<'a> {
 	}
 }
 
-impl<'a> fmt::Display for UntrustedRlp<'a> {
+impl<'a> fmt::Display for Rlp<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
 		match self.prototype() {
 			Ok(Prototype::Null) => write!(f, "null"),
@@ -132,9 +132,9 @@ impl<'a> fmt::Display for UntrustedRlp<'a> {
 	}
 }
 
-impl<'a, 'view> UntrustedRlp<'a> where 'a: 'view {
-	pub fn new(bytes: &'a [u8]) -> UntrustedRlp<'a> {
-		UntrustedRlp {
+impl<'a, 'view> Rlp<'a> where 'a: 'view {
+	pub fn new(bytes: &'a [u8]) -> Rlp<'a> {
+		Rlp {
 			bytes: bytes,
 			offset_cache: Cell::new(OffsetCache::new(usize::max_value(), 0)),
 			count_cache: Cell::new(None)
@@ -187,7 +187,7 @@ impl<'a, 'view> UntrustedRlp<'a> where 'a: 'view {
 		}
 	}
 
-	pub fn at(&'view self, index: usize) -> Result<UntrustedRlp<'a>, DecoderError> {
+	pub fn at(&'view self, index: usize) -> Result<Rlp<'a>, DecoderError> {
 		if !self.is_list() {
 			return Err(DecoderError::RlpExpectedToBeList);
 		}
@@ -196,19 +196,19 @@ impl<'a, 'view> UntrustedRlp<'a> where 'a: 'view {
 		// current search index, otherwise move to beginning of list
 		let c = self.offset_cache.get();
 		let (mut bytes, to_skip) = match c.index <= index {
-			true => (UntrustedRlp::consume(self.bytes, c.offset)?, index - c.index),
+			true => (Rlp::consume(self.bytes, c.offset)?, index - c.index),
 			false => (self.consume_list_payload()?, index),
 		};
 
 		// skip up to x items
-		bytes = UntrustedRlp::consume_items(bytes, to_skip)?;
+		bytes = Rlp::consume_items(bytes, to_skip)?;
 
 		// update the cache
 		self.offset_cache.set(OffsetCache::new(index, self.bytes.len() - bytes.len()));
 
 		// construct new rlp
 		let found = BasicDecoder::payload_info(bytes)?;
-		Ok(UntrustedRlp::new(&bytes[0..found.header_len + found.value_len]))
+		Ok(Rlp::new(&bytes[0..found.header_len + found.value_len]))
 	}
 
 	pub fn is_null(&self) -> bool {
@@ -240,7 +240,7 @@ impl<'a, 'view> UntrustedRlp<'a> where 'a: 'view {
 		}
 	}
 
-	pub fn iter(&'view self) -> UntrustedRlpIterator<'a, 'view> {
+	pub fn iter(&'view self) -> RlpIterator<'a, 'view> {
 		self.into_iter()
 	}
 
@@ -267,7 +267,7 @@ impl<'a, 'view> UntrustedRlp<'a> where 'a: 'view {
 	/// consumes first found prefix
 	fn consume_list_payload(&self) -> Result<&'a [u8], DecoderError> {
 		let item = BasicDecoder::payload_info(self.bytes)?;
-		let bytes = UntrustedRlp::consume(self.bytes, item.header_len)?;
+		let bytes = Rlp::consume(self.bytes, item.header_len)?;
 		Ok(bytes)
 	}
 
@@ -276,7 +276,7 @@ impl<'a, 'view> UntrustedRlp<'a> where 'a: 'view {
 		let mut result = bytes;
 		for _ in 0..items {
 			let i = BasicDecoder::payload_info(result)?;
-			result = UntrustedRlp::consume(result, i.header_len + i.value_len)?;
+			result = Rlp::consume(result, i.header_len + i.value_len)?;
 		}
 		Ok(result)
 	}
@@ -292,27 +292,27 @@ impl<'a, 'view> UntrustedRlp<'a> where 'a: 'view {
 }
 
 /// Iterator over rlp-slice list elements.
-pub struct UntrustedRlpIterator<'a, 'view> where 'a: 'view {
-	rlp: &'view UntrustedRlp<'a>,
+pub struct RlpIterator<'a, 'view> where 'a: 'view {
+	rlp: &'view Rlp<'a>,
 	index: usize,
 }
 
-impl<'a, 'view> IntoIterator for &'view UntrustedRlp<'a> where 'a: 'view {
-	type Item = UntrustedRlp<'a>;
-	type IntoIter = UntrustedRlpIterator<'a, 'view>;
+impl<'a, 'view> IntoIterator for &'view Rlp<'a> where 'a: 'view {
+	type Item = Rlp<'a>;
+	type IntoIter = RlpIterator<'a, 'view>;
 
 	fn into_iter(self) -> Self::IntoIter {
-		UntrustedRlpIterator {
+		RlpIterator {
 			rlp: self,
 			index: 0,
 		}
 	}
 }
 
-impl<'a, 'view> Iterator for UntrustedRlpIterator<'a, 'view> {
-	type Item = UntrustedRlp<'a>;
+impl<'a, 'view> Iterator for RlpIterator<'a, 'view> {
+	type Item = Rlp<'a>;
 
-	fn next(&mut self) -> Option<UntrustedRlp<'a>> {
+	fn next(&mut self) -> Option<Rlp<'a>> {
 		let index = self.index;
 		let result = self.rlp.at(index).ok();
 		self.index += 1;
@@ -321,11 +321,11 @@ impl<'a, 'view> Iterator for UntrustedRlpIterator<'a, 'view> {
 }
 
 pub struct BasicDecoder<'a> {
-	rlp: UntrustedRlp<'a>
+	rlp: Rlp<'a>
 }
 
 impl<'a> BasicDecoder<'a> {
-	pub fn new(rlp: UntrustedRlp<'a>) -> BasicDecoder<'a> {
+	pub fn new(rlp: Rlp<'a>) -> BasicDecoder<'a> {
 		BasicDecoder {
 			rlp: rlp
 		}
@@ -386,20 +386,20 @@ impl<'a> BasicDecoder<'a> {
 
 #[cfg(test)]
 mod tests {
-	use {UntrustedRlp, DecoderError};
+	use {Rlp, DecoderError};
 
 	#[test]
 	fn test_rlp_display() {
 		use rustc_hex::FromHex;
 		let data = "f84d0589010efbef67941f79b2a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a0c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470".from_hex().unwrap();
-		let rlp = UntrustedRlp::new(&data);
+		let rlp = Rlp::new(&data);
 		assert_eq!(format!("{}", rlp), "[\"0x05\", \"0x010efbef67941f79b2\", \"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421\", \"0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470\"]");
 	}
 
 	#[test]
 	fn length_overflow() {
 		let bs = [0xbf, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe5];
-		let rlp = UntrustedRlp::new(&bs);
+		let rlp = Rlp::new(&bs);
 		let res: Result<u8, DecoderError> = rlp.as_val();
 		assert_eq!(Err(DecoderError::RlpInvalidLength), res);
 	}

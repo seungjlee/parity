@@ -263,7 +263,7 @@ impl EarlyMergeDB {
 		let mut refs = HashMap::new();
 		let mut latest_era = None;
 		if let Some(val) = db.get(col, &LATEST_ERA_KEY).expect("Low-level database error.") {
-			let mut era = decode::<u64>(&val);
+			let mut era = decode::<u64>(&val).expect("rlp read from db; qed");
 			latest_era = Some(era);
 			loop {
 				//let mut index = 0usize;
