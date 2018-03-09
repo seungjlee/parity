@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
+use ethereum_types::H256;
 use elastic_array::ElasticArray36;
 use nibbleslice::NibbleSlice;
 use nibblevec::NibbleVec;
@@ -41,29 +42,7 @@ impl<'a> Node<'a> {
 	/// Decode the `node_rlp` and return the Node.
 	pub fn decoded(node_rlp: &'a [u8]) -> Self {
 		let r = Rlp::new(node_rlp);
-		match r.prototype() {
-			// either leaf or extension - decode first item with NibbleSlice::???
-			// and use is_leaf return to figure out which.
-			// if leaf, second item is a value (is_data())
-			// if extension, second item is a node (either SHA3 to be looked up and
-			// fed back into this function or inline RLP which can be fed back into this function).
-			Prototype::List(2) => match NibbleSlice::from_encoded(r.at(0).data()) {
-				(slice, true) => Node::Leaf(slice, r.at(1).data()),
-				(slice, false) => Node::Extension(slice, r.at(1).as_raw()),
-			},
-			// branch - first 16 are nodes, 17th is a value (or empty).
-			Prototype::List(17) => {
-				let mut nodes = [&[] as &[u8]; 16];
-				for i in 0..16 {
-					nodes[i] = r.at(i).as_raw();
-				}
-				Node::Branch(nodes, if r.at(16).is_empty() { None } else { Some(r.at(16).data()) })
-			},
-			// an empty branch index.
-			Prototype::Data(0) => Node::Empty,
-			// something went wrong.
-			_ => panic!("Rlp is not valid.")
-		}
+		Node::decode_rlp(&r).expect("Self encoded Rlp should be valid; qed")
 	}
 
 	/// Encode the node into RLP.
@@ -100,6 +79,42 @@ impl<'a> Node<'a> {
 				stream.append_empty_data();
 				stream.out()
 			}
+		}
+	}
+
+	pub fn try_decode_hash(node_data: &[u8]) -> Option<H256> {
+		let r = Rlp::new(node_data);
+		if r.is_data() && r.size() == 32 {
+			Some(r.as_val().expect("Hash is the correct size of 32 bytes; qed"))
+		} else {
+			None
+		}
+	}
+
+	// TODO: this could implement Decodable? But need to figure out how to unify lifetimes
+	fn decode_rlp<'b>(r: &Rlp<'b>) -> Result<Node<'b>, DecoderError> {
+		match r.prototype()? {
+			// either leaf or extension - decode first item with NibbleSlice::???
+			// and use is_leaf return to figure out which.
+			// if leaf, second item is a value (is_data())
+			// if extension, second item is a node (either SHA3 to be looked up and
+			// fed back into this function or inline RLP which can be fed back into this function).
+			Prototype::List(2) => match NibbleSlice::from_encoded(r.at(0)?.data()?) {
+				(slice, true) => Ok(Node::Leaf(slice, r.at(1)?.data()?)),
+				(slice, false) => Ok(Node::Extension(slice, r.at(1)?.as_raw())),
+			},
+			// branch - first 16 are nodes, 17th is a value (or empty).
+			Prototype::List(17) => {
+				let mut nodes = [&[] as &[u8]; 16];
+				for i in 0..16 {
+					nodes[i] = r.at(i)?.as_raw();
+				}
+				Ok(Node::Branch(nodes, if r.at(16)?.is_empty() { None } else { Some(r.at(16)?.data()?) }))
+			},
+			// an empty branch index.
+			Prototype::Data(0) => Ok(Node::Empty),
+			// something went wrong.
+			_ => panic!("Rlp is not valid.")
 		}
 	}
 }
