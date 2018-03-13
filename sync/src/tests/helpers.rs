@@ -29,7 +29,7 @@ use ethcore::spec::Spec;
 use ethcore::account_provider::AccountProvider;
 use ethcore::miner::Miner;
 use private_transactions::{Provider as PrivateTransactionProvider, ProviderConfig};
-use private_transactions::DummyEncryptor;
+use private_transactions::{self, DummyEncryptor};
 use sync_io::SyncIo;
 use io::{IoChannel, IoContext, IoHandler};
 use api::WARP_SYNC_PROTOCOL_ID;
@@ -395,15 +395,16 @@ impl TestNet<EthPeer<EthcoreClient>> {
 	}
 
 	pub fn add_peer_with_private_config(&mut self, config: SyncConfig, spec: Spec, accounts: Option<Arc<AccountProvider>>, private_provider_config: ProviderConfig) {
+		let channel = IoChannel::disconnected();
 		let client = EthcoreClient::new(
 			ClientConfig::default(),
 			&spec,
 			Arc::new(::kvdb_memorydb::create(::ethcore::db::NUM_COLUMNS.unwrap_or(0))),
 			Arc::new(Miner::with_spec_and_accounts(&spec, accounts.clone())),
-			IoChannel::disconnected(),
+			channel.clone()
 		).unwrap();
 
-		let private_provider = Arc::new(PrivateTransactionProvider::new(client.clone(), accounts.unwrap().clone(), Arc::new(DummyEncryptor::default()), private_provider_config).unwrap());
+		let private_provider = Arc::new(PrivateTransactionProvider::new(client.clone(), accounts.unwrap().clone(), Box::new(DummyEncryptor::default()), private_provider_config, channel).unwrap());
 		let ss = Arc::new(TestSnapshotService::new());
 		let sync = ChainSync::new(config, &*client, Some(private_provider.clone()));
 		let peer = Arc::new(EthPeer {
@@ -416,7 +417,6 @@ impl TestNet<EthPeer<EthcoreClient>> {
 			new_blocks_queue: RwLock::new(VecDeque::new()),
 		});
 		peer.chain.add_notify(peer.clone());
-		peer.chain.set_private_notify(private_provider.clone());
 		private_provider.add_notify(peer.clone());
 		self.peers.push(peer);
 	}
@@ -543,6 +543,7 @@ impl<C: FlushingBlockChainClient> TestNet<EthPeer<C>> {
 
 pub struct TestIoHandler {
 	pub client: Arc<EthcoreClient>,
+	pub private_tx: Arc<private_transactions::Provider>,
 }
 
 impl IoHandler<ClientIoMessage> for TestIoHandler {
@@ -551,7 +552,7 @@ impl IoHandler<ClientIoMessage> for TestIoHandler {
 			ClientIoMessage::NewMessage(ref message) => if let Err(e) = self.client.engine().handle_message(message) {
 				panic!("Invalid message received: {}", e);
 			},
-			ClientIoMessage::NewPrivateTransaction => if let Err(e) = self.client.handle_private_message() {
+			ClientIoMessage::NewPrivateTransaction => if let Err(e) = self.private_tx.on_private_transaction_queued() {
 				warn!("Failed to handle private transaction {:?}", e);
 			},
 			_ => {} // ignore other messages

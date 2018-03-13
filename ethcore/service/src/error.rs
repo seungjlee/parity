@@ -14,25 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-extern crate ansi_term;
-extern crate ethcore;
-extern crate ethcore_io as io;
-extern crate kvdb;
-extern crate kvdb_rocksdb;
-extern crate private_transactions;
-extern crate stop_guard;
+use ethcore;
+use io;
+use private_transactions;
 
-#[macro_use]
-extern crate error_chain;
+error_chain! {
+	links {
+		PrivateTransactions(private_transactions::Error, private_transactions::ErrorKind);
+	}
 
-#[macro_use]
-extern crate log;
-
-#[cfg(test)]
-extern crate tempdir;
-
-mod error;
-mod service;
-
-pub use error::{Error, ErrorKind};
-pub use service::ClientService;
+	foreign_links {
+		Ethcore(ethcore::error::Error);
+		IoError(io::IoError);
+	}
+}
