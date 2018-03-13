@@ -23,7 +23,7 @@ use bytes::Bytes;
 use super::{Height, View, BlockHash, Step};
 use error::Error;
 use header::Header;
-use rlp::{Rlp, Rlp, RlpStream, Encodable, Decodable, DecoderError};
+use rlp::{Rlp, RlpStream, Encodable, Decodable, DecoderError};
 use ethkey::{recover, public_to_address};
 use super::super::vote_collector::Message;
 
