@@ -48,7 +48,7 @@ impl Header {
 	pub fn new(encoded: Vec<u8>) -> Self { Header(encoded) }
 
 	/// Upgrade this encoded view to a fully owned `Header` object.
-	pub fn decode(&self) -> FullHeader { ::rlp::decode(&self.0) }
+	pub fn decode(&self) -> FullHeader { ::rlp::decode(&self.0).expect("header should be valid rlp") }
 
 	/// Get a borrowed header view onto the data.
 	#[inline]
@@ -190,10 +190,10 @@ impl Block {
 	pub fn header_view(&self) -> views::HeaderView { self.view().header_view() }
 
 	/// Decode to a full block.
-	pub fn decode(&self) -> FullBlock { ::rlp::decode(&self.0) }
+	pub fn decode(&self) -> FullBlock { ::rlp::decode(&self.0).expect("block should be valid rlp") }
 
 	/// Decode the header.
-	pub fn decode_header(&self) -> FullHeader { self.rlp().val_at(0) }
+	pub fn decode_header(&self) -> FullHeader { self.rlp().val_at(0).expect("block rlp should have a valid header") }
 
 	/// Clone the encoded header.
 	pub fn header(&self) -> Header { Header(self.rlp().at(0).as_raw().to_vec()) }

@@ -222,7 +222,7 @@ impl<KVDB: KeyValueDB + ?Sized> Readable for KVDB {
 		let result = self.get(col, &key.key());
 
 		match result {
-			Ok(option) => option.map(|v| rlp::decode(&v)),
+			Ok(option) => option.map(|v| rlp::decode(&v).expect("rlp value from db; qed")),
 			Err(err) => {
 				panic!("db get failed, key: {:?}, err: {:?}", &key.key() as &[u8], err);
 			}

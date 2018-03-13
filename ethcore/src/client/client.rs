@@ -437,7 +437,7 @@ impl Importer {
 	fn import_old_block(&self, block_bytes: Bytes, receipts_bytes: Bytes, db: &KeyValueDB, chain: &BlockChain) -> Result<H256, ::error::Error> {
 		let block = BlockView::new(&block_bytes);
 		let header = block.header();
-		let receipts = ::rlp::decode_list(&receipts_bytes);
+		let receipts = ::rlp::decode_list(&receipts_bytes)?;
 		let hash = header.hash();
 		let _import_lock = self.import_lock.lock();
 
